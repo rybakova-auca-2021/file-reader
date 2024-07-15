@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">file_reader</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="document_reader">Document Reader</string>
+    <string name="txt">TXT</string>
+    <string name="xls">XLS</string>
+    <string name="doc">DOC</string>
+    <string name="pdf">PDF</string>
+    <string name="all_files">Все файлы</string>
+</resources>
