@@ -46,22 +46,27 @@ class FilePageFragment : Fragment() {
         val fileUriString = arguments?.getString("fileUri")
         val fileUri = Uri.parse(fileUriString)
 
-        // Load the document text in the background
         CoroutineScope(Dispatchers.Main).launch {
             when (requireContext().contentResolver.getType(fileUri)) {
                 "application/pdf" -> {
-                    binding.scrollView.visibility = View.GONE
-                    binding.imageViewPdf.visibility = View.VISIBLE
-                    binding.seekBar.visibility = View.VISIBLE
+                    binding.apply {
+                        scrollView.visibility = View.GONE
+                        imageViewPdf.visibility = View.VISIBLE
+                        seekBar.visibility = View.VISIBLE
+                        zoomInButton.visibility = View.GONE
+                        zoomOutButton.visibility = View.GONE
+                    }
                     displayPdf(fileUri)
                 }
                 else -> {
                     val documentText = withContext(Dispatchers.IO) {
                         readTextFromUri(fileUri)
                     }
-                    binding.imageViewPdf.visibility = View.GONE
-                    binding.scrollView.visibility = View.VISIBLE
-                    binding.textViewText.text = documentText
+                    binding.apply {
+                        imageViewPdf.visibility = View.GONE
+                        scrollView.visibility = View.VISIBLE
+                        textViewText.text = documentText
+                    }
                     displayText(documentText)
                 }
             }
@@ -108,7 +113,6 @@ class FilePageFragment : Fragment() {
         val contentResolver = requireContext().contentResolver
         val inputStream = contentResolver.openInputStream(uri)
 
-        // Check the MIME type and handle accordingly
         val mimeType = contentResolver.getType(uri)
         return when (mimeType) {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> {
