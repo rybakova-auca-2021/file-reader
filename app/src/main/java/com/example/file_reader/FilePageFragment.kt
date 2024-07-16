@@ -131,6 +131,7 @@ class FilePageFragment : Fragment() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     scrollToPage(progress)
+                    openPage(progress)
                 }
             }
 
@@ -271,9 +272,11 @@ class FilePageFragment : Fragment() {
         if (parcelFileDescriptor != null) {
             pdfRenderer = PdfRenderer(parcelFileDescriptor)
             pageCount = pdfRenderer!!.pageCount
+            binding.seekBar.max = pageCount - 1
             openPage(0)
         }
     }
+
 
     private fun openPage(index: Int) {
         currentPage?.close()
@@ -285,6 +288,7 @@ class FilePageFragment : Fragment() {
             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
             binding.imageViewPdf.setImageBitmap(bitmap)
             binding.pageInfo.text = "Page ${index + 1} of $pageCount"
+            binding.seekBar.progress = index
         }
     }
 
