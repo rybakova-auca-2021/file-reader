@@ -4,13 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
-import android.os.ParcelFileDescriptor
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.Fragment
+import android.view.ViewTreeObserver
 import android.widget.SeekBar
+import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.example.file_reader.databinding.FragmentFilePageBinding
 import kotlinx.coroutines.CoroutineScope
@@ -21,29 +20,32 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.ss.usermodel.Workbook
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.apache.poi.xwpf.usermodel.XWPFDocument
-import java.io.*
+import java.io.BufferedReader
+import java.io.InputStream
+import java.io.InputStreamReader
 import java.nio.charset.Charset
 
 class FilePageFragment : Fragment() {
 
-    private var _binding: FragmentFilePageBinding? = null
-    private val binding get() = _binding!!
-
+    private lateinit var binding: FragmentFilePageBinding
     private var currentTextSize = 16f
     private var pdfRenderer: PdfRenderer? = null
     private var currentPage: PdfRenderer.Page? = null
     private var pageCount = 0
     private var totalTextPages = 0
     private var currentTextPage = 0
+    var fileUriString = ""
+    var fileName = ""
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = FragmentFilePageBinding.inflate(inflater, container, false)
+        binding = FragmentFilePageBinding.inflate(inflater, container, false)
         val view = binding.root
 
-        val fileUriString = arguments?.getString("fileUri")
+        fileUriString = arguments?.getString("fileUri").toString()
+        fileName = arguments?.getString("fileName").toString()
         val fileUri = Uri.parse(fileUriString)
 
         CoroutineScope(Dispatchers.Main).launch {
@@ -67,19 +69,26 @@ class FilePageFragment : Fragment() {
                         scrollView.visibility = View.VISIBLE
                         textViewText.text = documentText
                     }
-                    displayText(documentText)
+                    setupInitialView()
+                    setupScrollView()
                 }
             }
         }
-
         binding.buttonBack.setOnClickListener {
-            findNavController().navigate(R.id.action_filePageFragment_to_mainPageFragment)
+            findNavController().navigate(R.id.mainPageFragment)
         }
+        setupZoomButtons()
+        setupSeekBar()
 
+        return view
+    }
+
+    private fun setupZoomButtons() {
         binding.zoomInButton.setOnClickListener {
             if (currentTextSize < 30f) {
                 currentTextSize += 2f
                 binding.textViewText.textSize = currentTextSize
+                updatePageInfo()
             }
         }
 
@@ -87,9 +96,37 @@ class FilePageFragment : Fragment() {
             if (currentTextSize > 10f) {
                 currentTextSize -= 2f
                 binding.textViewText.textSize = currentTextSize
+                updatePageInfo()
             }
         }
+    }
 
+    private fun updatePageInfo() {
+        binding.scrollView.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                binding.scrollView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+
+                val textHeight = binding.textViewText.height
+                val scrollViewHeight = binding.scrollView.height
+
+                val totalScrollableHeight = textHeight - scrollViewHeight
+                if (totalScrollableHeight > 0) {
+                    totalTextPages = (textHeight.toFloat() / scrollViewHeight).toInt()
+                    currentTextPage = ((binding.scrollView.scrollY.toFloat() / totalScrollableHeight) * totalTextPages).toInt()
+                    binding.pageInfo.text = "${fileName}:\nPage ${currentTextPage + 1} of ${totalTextPages + 1}"
+
+                    binding.seekBar.progress = currentTextPage
+                    binding.seekBar.max = totalTextPages
+                } else {
+                    binding.pageInfo.text = "Page 1 of 1"
+                    binding.seekBar.progress = 0
+                    binding.seekBar.max = 0
+                }
+            }
+        })
+    }
+
+    private fun setupSeekBar() {
         binding.seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
@@ -97,16 +134,48 @@ class FilePageFragment : Fragment() {
                 }
             }
 
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                // Do nothing
-            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
 
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                // Do nothing
-            }
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+    }
 
-        return view
+    private fun setupScrollView() {
+        binding.scrollView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            val textHeight = binding.textViewText.height
+            val scrollViewHeight = binding.scrollView.height
+
+            val totalScrollableHeight = textHeight - scrollViewHeight
+            if (totalScrollableHeight > 0) {
+                totalTextPages = (textHeight.toFloat() / scrollViewHeight).toInt()
+                currentTextPage = ((scrollY.toFloat() / totalScrollableHeight) * totalTextPages).toInt()
+                binding.pageInfo.text = "${fileName}:\nPage ${currentTextPage + 1} of ${totalTextPages + 1}"
+
+                binding.seekBar.progress = currentTextPage
+                binding.seekBar.max = totalTextPages
+            }
+        }
+    }
+
+    private fun setupInitialView() {
+        binding.scrollView.viewTreeObserver.addOnGlobalLayoutListener {
+            val textHeight = binding.textViewText.height
+            val scrollViewHeight = binding.scrollView.height
+
+            val totalScrollableHeight = textHeight - scrollViewHeight
+            if (totalScrollableHeight > 0) {
+                totalTextPages = (textHeight.toFloat() / scrollViewHeight).toInt()
+                currentTextPage = ((binding.scrollView.scrollY.toFloat() / totalScrollableHeight) * totalTextPages).toInt()
+                binding.pageInfo.text = "${fileName}:\nPage ${currentTextPage + 1} of ${totalTextPages + 1}"
+
+                binding.seekBar.progress = currentTextPage
+                binding.seekBar.max = totalTextPages
+            } else {
+                binding.pageInfo.text = "Page 1 of 1"
+                binding.seekBar.progress = 0
+                binding.seekBar.max = 0
+            }
+        }
     }
 
     private fun readTextFromUri(uri: Uri): String {
@@ -200,37 +269,18 @@ class FilePageFragment : Fragment() {
     private fun showPage(index: Int) {
         pdfRenderer?.let { renderer ->
             currentPage?.close()
-            currentPage = renderer.openPage(index).apply {val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            currentPage = renderer.openPage(index).apply {
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 binding.imageViewPdf.setImageBitmap(bitmap)
 
-                binding.pageInfo.text = "Page ${index + 1} of $pageCount"
+                binding.pageInfo.text = "${fileName}: Page ${index + 1} of $pageCount"
             }
         }
     }
 
-    private fun displayText(text: String) {
-        val lines = text.split("\n")
-        totalTextPages = (lines.size + 999) / 1000
-        currentTextPage = 0
-
-        binding.seekBar.max = totalTextPages - 1
-        showTextPage(currentTextPage)
-    }
-
-    private fun showTextPage(index: Int) {
-        val lines = binding.textViewText.text.split("\n")
-        val start = index * 1000
-        val end = minOf((index + 1) * 1000, lines.size)
-
-        val pageText = lines.subList(start, end).joinToString("\n")
-        binding.textViewText.text = pageText
-        binding.pageInfo.text = "Page ${index + 1} of $totalTextPages"
-    }
-
     override fun onDestroyView() {
         super.onDestroyView()
-        _binding = null
         currentPage?.close()
         pdfRenderer?.close()
     }

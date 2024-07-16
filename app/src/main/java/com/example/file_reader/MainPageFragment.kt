@@ -56,16 +56,37 @@ class MainPageFragment : Fragment() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE_OPEN_DOCUMENT && resultCode == Activity.RESULT_OK) {
             data?.data?.also { uri ->
-                openFile(uri)
+                val fileName = getFileName(uri)
+                openFile(uri, fileName)
             }
         }
     }
 
-    private fun openFile(uri: Uri) {
+    private fun openFile(uri: Uri, fileName: String) {
         val bundle = Bundle().apply {
             putString("fileUri", uri.toString())
+            putString("fileName", fileName)
         }
         findNavController().navigate(R.id.action_mainPageFragment_to_filePageFragment, bundle)
+    }
+
+    private fun getFileName(uri: Uri): String {
+        var result: String? = null
+        if (uri.scheme.equals("content")) {
+            requireContext().contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    result = cursor.getString(cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME))
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path
+            val cut = result?.lastIndexOf('/') ?: -1
+            if (cut != -1) {
+                result = result?.substring(cut + 1)
+            }
+        }
+        return result ?: "Unknown"
     }
 
     override fun onDestroyView() {

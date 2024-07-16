@@ -84,6 +84,7 @@
                     android:id="@+id/pageInfo"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:gravity="center"
                     tools:text="23/854 Смерть чиновника"
                     android:textColor="@android:color/white"
                     android:layout_centerHorizontal="true"
